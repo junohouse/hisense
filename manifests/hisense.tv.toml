@@ -62,6 +62,12 @@ tls = true
 username = "hisenseservice"
 password = "multimqttservice"
 
+# Port 36669 is TLS from the first byte, so there is no plaintext handshake this driver could
+# send and check the answer to — a probe here can only confirm the port is open, not that it
+# is really a Hisense. Still worth it: an unconfirmed "something is listening at 36669" is a
+# candidate address on a survey screen instead of a trip to the TV's own network settings.
+[transport.probe]
+
 [[property]]
 name = "Address"
 type = "string"

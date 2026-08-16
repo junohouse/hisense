@@ -1,4 +1,5 @@
 /target
+/dist
 
 # The release workflow stages the compiled library beside the manifest on the way into the
 # .junodrv. Committing it means every build is a megabyte-sized binary diff, and a checkout
