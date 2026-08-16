@@ -1,0 +1,100 @@
+[driver]
+id = "hisense.tv"
+name = "Hisense TV"
+manufacturer = "Hisense"
+version = "1.0.0"
+runtime = "wasm"
+primary = true
+
+# One box, two things it does — same reasoning as Roku: "watch Netflix" is the media_player,
+# volume and input are the tv.
+[[proxy]]
+id = 1
+type = "media_player"
+primary = true
+name = "Hisense"
+capabilities = { has_transport = true, has_skip = true, has_scan = true, has_dpad = true, has_apps = true, is_video_source = true, is_audio_source = true }
+
+[[proxy]]
+id = 2
+type = "tv"
+name = "Screen"
+# No has_discrete_power: the only power key this thing has is a toggle. `on` is a Wake-on-LAN
+# packet instead of a keypress — see src/lib.rs — so the pair still behaves like two commands,
+# just not two keys on the wire.
+capabilities = { has_discrete_input = true, has_volume = true, has_discrete_volume = true }
+
+[[connection]]
+id = 1001
+proxy = 2
+dir = "consumer"
+class = "HDMI"
+name = "HDMI 1"
+
+[[connection]]
+id = 1002
+proxy = 2
+dir = "consumer"
+class = "HDMI"
+name = "HDMI 2"
+
+[[connection]]
+id = 1003
+proxy = 2
+dir = "consumer"
+class = "HDMI"
+name = "HDMI 3"
+
+[[connection]]
+id = 1004
+proxy = 2
+dir = "consumer"
+class = "HDMI"
+name = "HDMI 4"
+
+# The TV's own broker, which is how its Remote NOW app talks to it. Fixed credentials because
+# they are the same for every unit — published in Hisense's own firmware, not issued per
+# install — see driver-sdk's TransportDecl::username.
+[[transport]]
+kind = "mqtt"
+port = 36669
+tls = true
+username = "hisenseservice"
+password = "multimqttservice"
+
+[[property]]
+name = "Address"
+type = "string"
+required = true
+tooltip = "IP address of the TV. Settings → Network → check the network status for this address."
+
+[[property]]
+name = "MAC address"
+type = "string"
+required = true
+tooltip = """
+Settings → Network → check the network status, or the label on the back of the TV. Needed to \
+wake the TV over the network — its broker is not running while it is off, so there is nothing \
+else `on` could reach.
+"""
+
+[[action]]
+name = "pair"
+label = "Enter the code shown on the TV"
+description = """
+Some models ask for a 4-digit code the first time a new remote connects — it appears on screen \
+on its own the moment this driver's first command reaches the TV. Nothing to press first; just \
+type in what it shows.
+"""
+arg = [
+  { name = "code", type = "string", label = "Code", required = true },
+]
+
+# From "HISENSE VISUAL TECHNOLOGY CO.,LTD" in the IEEE OUI registry — Hisense's TV-panel
+# entity, not its phone or router divisions, which register their own prefixes and would
+# false-positive on a device this driver cannot speak to.
+[discovery]
+mac_oui = [
+  "E4:3B:C9", "DC:9A:7D", "A0:00:4C", "C4:08:26", "CC:12:28",
+  "E4:8A:93", "C4:8A:CE", "90:3C:1D", "88:B8:63", "74:D0:82", "A0:62:FB",
+]
