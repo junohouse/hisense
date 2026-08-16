@@ -50,16 +50,35 @@ const CLIENT: &str = "Juno";
 const MEDIA: LocalId = 1;
 const TV: LocalId = 2;
 
-/// This driver's own HDMI connections, matching the manifest's `[[connection]]` blocks. Needed
-/// both ways: a `set_input` command names one by its manifest id, and a `sourceswitch` state
-/// message names one by the name Hisense gave it — which is why matching is by name rather than
-/// by position, in case a model orders its inputs differently.
-const HDMI: &[(LocalId, &str)] = &[
-    (1001, "HDMI 1"),
-    (1002, "HDMI 2"),
-    (1003, "HDMI 3"),
-    (1004, "HDMI 4"),
-];
+/// A connection id for one of the TV's sources, derived from the name it calls it.
+///
+/// From the name and not from `sourceid`, which is per model — a real set reports HDMI 1 as
+/// source 3 — and not from list order either, since a project remembers what an installer
+/// wired by this number and a firmware update must not move somebody's cabling.
+fn connection_id(sourcename: &str) -> Option<LocalId> {
+    let name = sourcename.trim();
+    if let Some(n) = name.strip_prefix("HDMI") {
+        return n.trim().parse::<LocalId>().ok().filter(|n| (1..=99).contains(n)).map(|n| 1000 + n);
+    }
+    match name.to_ascii_uppercase().as_str() {
+        "AV" | "COMPOSITE" => Some(1101),
+        "COMPONENT" => Some(1102),
+        "TV" => Some(1201),
+        // Anything else this model happens to list. Reported rather than dropped would mean
+        // inventing an id for a name nobody here has seen, and ids have to be stable.
+        _ => None,
+    }
+}
+
+/// What kind of cable a source takes, for the pathfinder's own vocabulary.
+fn signal_class(sourcename: &str) -> &'static str {
+    match connection_id(sourcename) {
+        Some(1101) => "COMPOSITE",
+        Some(1102) => "COMPONENT",
+        Some(1201) => "RF_UHF_VHF",
+        _ => "HDMI",
+    }
+}
 
 impl Hisense {
     fn publish(service: &str, action: &str, payload: String) -> HostCall {
@@ -223,18 +242,21 @@ impl DriverModule for Hisense {
                 let Some(conn) = args.get("connection").and_then(Value::as_u64) else {
                     return vec![HostCall::warn("hisense: set_input needs a connection")];
                 };
-                let Some((_, name)) = HDMI.iter().find(|(id, _)| u64::from(*id) == conn) else {
-                    return vec![HostCall::warn(format!("hisense: no such connection {conn}"))];
-                };
+                // Against what the TV reported, so the name sent back is the one it uses —
+                // `sourceid` is per model and cannot be derived.
                 let sources = Hisense::sources(inst);
                 let Some(source) = sources.iter().find(|s| {
-                    s.get("sourcename").and_then(Value::as_str).is_some_and(|n| n.eq_ignore_ascii_case(name))
+                    s.get("sourcename")
+                        .and_then(Value::as_str)
+                        .and_then(connection_id)
+                        .is_some_and(|id| u64::from(id) == conn)
                 }) else {
                     return vec![HostCall::warn(format!(
-                        "hisense: this TV has not reported a source named `{name}` yet"
+                        "hisense: this TV has not reported a source for connection {conn} yet"
                     ))];
                 };
                 let sourceid = source.get("sourceid").and_then(Value::as_str).unwrap_or_default();
+                let name = source.get("sourcename").and_then(Value::as_str).unwrap_or_default();
                 let payload = json!({ "sourceid": sourceid, "sourcename": name }).to_string();
                 let mut a = Args::new();
                 a.insert("connection".into(), json!(conn));
@@ -336,7 +358,23 @@ impl DriverModule for Hisense {
         if let Some(arr) = msg.as_array().filter(|a| !a.is_empty()) {
             if arr.iter().all(|e| e.get("sourceid").is_some()) {
                 inst.scratch.insert("sources".into(), msg.clone());
-                return Vec::new();
+                // What this set actually has, replacing the manifest's product-line guess of
+                // four HDMI ports — see `HostCall::Connections`. A model with three, or with a
+                // component input, is the ordinary case rather than the exception.
+                let connections: Vec<ConnectionDecl> = arr
+                    .iter()
+                    .filter_map(|s| {
+                        let name = s.get("sourcename").and_then(Value::as_str)?;
+                        Some(ConnectionDecl {
+                            id: connection_id(name)?,
+                            proxy: TV,
+                            dir: Direction::Consumer,
+                            class: signal_class(name).into(),
+                            name: name.trim().to_string(),
+                        })
+                    })
+                    .collect();
+                return vec![HostCall::Connections { connections }];
             }
             if arr.iter().all(|e| e.get("name").is_some()) {
                 inst.scratch.insert("apps".into(), msg.clone());
@@ -357,7 +395,7 @@ impl DriverModule for Hisense {
         // `gettvstate`'s reply, and every unsolicited `sourceswitch` push: whatever this TV is
         // showing right now, named the same way a sourcelist entry names it.
         if let Some(name) = msg.get("sourcename").and_then(Value::as_str)
-            && let Some((id, _)) = HDMI.iter().find(|(_, n)| n.eq_ignore_ascii_case(name))
+            && let Some(id) = connection_id(name)
         {
             let mut a = Args::new();
             a.insert("connection".into(), json!(id));
@@ -504,7 +542,10 @@ mod tests {
         let sources = r#"[{"sourceid":"0","sourcename":"TV","displayname":"TV"},
                            {"sourceid":"4","sourcename":"HDMI 2","displayname":"HDMI 2"}]"#;
         let calls = driver.on_event(&mut inst, 0, "mqtt", &mqtt(sources));
-        assert!(calls.is_empty(), "a sourcelist is cached quietly, nothing to tell a room yet");
+        let [HostCall::Connections { connections }] = calls.as_slice() else {
+            panic!("a sourcelist says what inputs this set has, got {calls:?}");
+        };
+        assert_eq!(connections.len(), 2);
         assert_eq!(Hisense::sources(&inst).len(), 2);
 
         let apps = r#"[{"name":"Netflix","urlType":37,"url":"netflix"},
@@ -585,6 +626,45 @@ mod tests {
         let mut inst = Instance::default();
         let calls = driver.on_command(&mut inst, TV, "on", &Args::new());
         assert!(matches!(calls.as_slice(), [HostCall::Log { level, .. }] if level == "warn"));
+    }
+    /// The manifest declares four HDMI ports because it describes a product line. A real
+    /// sourcelist — this is the shape one arrives in — says what the set in the room has, and
+    /// `sourceid` is per model (HDMI 1 is source 3 here), which is why ids come from the name.
+    #[test]
+    fn a_sourcelist_reports_what_this_set_actually_has() {
+        let driver = Hisense;
+        let mut inst = Instance::default();
+        let sources = r#"[{"sourceid":"4","sourcename":"HDMI 2","displayname":"HDMI 2"},
+                          {"sourceid":"0","sourcename":"TV","displayname":"TV"},
+                          {"sourceid":"3","sourcename":"HDMI 1","displayname":"HDMI 1"},
+                          {"sourceid":"2","sourcename":"COMPONENT","displayname":"COMPONENT"},
+                          {"sourceid":"1","sourcename":"AV","displayname":"AV"}]"#;
+        let calls = driver.on_event(&mut inst, 0, "mqtt", &mqtt(sources));
+        let [HostCall::Connections { connections }] = calls.as_slice() else {
+            panic!("expected one Connections call, got {calls:?}");
+        };
+
+        let ids: Vec<LocalId> = connections.iter().map(|c| c.id).collect();
+        assert_eq!(ids, vec![1002, 1201, 1001, 1102, 1101]);
+        assert!(
+            !ids.contains(&1003) && !ids.contains(&1004),
+            "the manifest's third and fourth HDMI are phantoms on this set"
+        );
+        assert!(connections.iter().all(|c| c.dir == Direction::Consumer && c.proxy == TV));
+        assert_eq!(connections.iter().find(|c| c.id == 1002).unwrap().class, "HDMI");
+        assert_eq!(connections.iter().find(|c| c.id == 1201).unwrap().class, "RF_UHF_VHF");
+        assert_eq!(connections.iter().find(|c| c.id == 1101).unwrap().class, "COMPOSITE");
+    }
+
+    /// Ids come from the name, so a set that lists its sources in another order — or numbers
+    /// them differently, which every model does — keeps the ids a project was wired against.
+    #[test]
+    fn connection_ids_come_from_the_name_not_the_sourceid() {
+        assert_eq!(connection_id("HDMI 1"), Some(1001));
+        assert_eq!(connection_id("HDMI4"), Some(1004), "spacing varies between models");
+        assert_eq!(connection_id("AV"), Some(1101));
+        assert_eq!(connection_id("TV"), Some(1201));
+        assert_eq!(connection_id("Chromecast"), None, "an unknown name gets no invented id");
     }
 }
 
