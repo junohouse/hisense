@@ -21,8 +21,8 @@
 //!
 //! Messages are told apart by shape, not by topic: a sourcelist and an applist are both a JSON
 //! array on a reply topic this driver does not fully control the naming of, and the two shapes
-//! never collide — one is keyed by `sourceid`, the other by `name`. Recognising the field is
-//! more durable than recognising the path.
+//! never collide — one is keyed by `sourceid`, the other by `name`. Recognizing the field is
+//! more durable than recognizing the path.
 //!
 //! # No auto-discovery
 //!
@@ -308,7 +308,7 @@ impl DriverModule for Hisense {
                 a.insert("on".into(), json!(false));
                 out.push(HostCall::notify(TV, "power_changed", a));
             }
-            // power_toggle and mute_toggle: no optimistic notify. There is only the one key,
+            // power_toggle and mute_toggle: no optimiztic notify. There is only the one key,
             // so which way it just went is a guess this driver is not in a better position to
             // make than waiting for the TV to say so on its own.
             _ => {}
