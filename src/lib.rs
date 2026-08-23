@@ -358,9 +358,10 @@ impl DriverModule for Hisense {
         if let Some(arr) = msg.as_array().filter(|a| !a.is_empty()) {
             if arr.iter().all(|e| e.get("sourceid").is_some()) {
                 inst.scratch.insert("sources".into(), msg.clone());
-                // What this set actually has, replacing the manifest's product-line guess of
-                // four HDMI ports — see `HostCall::Connections`. A model with three, or with a
-                // component input, is the ordinary case rather than the exception.
+                // What this set actually has — the only place a Hisense's connections come
+                // from, since the manifest declares none. A model with three HDMI, or with a
+                // component input, is the ordinary case rather than the exception, so there is
+                // no product-line guess worth writing down. See `HostCall::Connections`.
                 let connections: Vec<ConnectionDecl> = arr
                     .iter()
                     .filter_map(|s| {
@@ -627,9 +628,9 @@ mod tests {
         let calls = driver.on_command(&mut inst, TV, "on", &Args::new());
         assert!(matches!(calls.as_slice(), [HostCall::Log { level, .. }] if level == "warn"));
     }
-    /// The manifest declares four HDMI ports because it describes a product line. A real
-    /// sourcelist — this is the shape one arrives in — says what the set in the room has, and
-    /// `sourceid` is per model (HDMI 1 is source 3 here), which is why ids come from the name.
+    /// A real sourcelist — this is the shape one arrives in — is the whole of what the set in
+    /// the room has, since the manifest declares nothing. `sourceid` is per model (HDMI 1 is
+    /// source 3 here), which is why ids come from the name rather than from it.
     #[test]
     fn a_sourcelist_reports_what_this_set_actually_has() {
         let driver = Hisense;

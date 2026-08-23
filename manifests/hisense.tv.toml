@@ -24,33 +24,9 @@ name = "Screen"
 # just not two keys on the wire.
 capabilities = { has_discrete_input = true, has_volume = true, has_discrete_volume = true }
 
-[[connection]]
-id = 1001
-proxy = 2
-dir = "consumer"
-class = "HDMI"
-name = "HDMI 1"
-
-[[connection]]
-id = 1002
-proxy = 2
-dir = "consumer"
-class = "HDMI"
-name = "HDMI 2"
-
-[[connection]]
-id = 1003
-proxy = 2
-dir = "consumer"
-class = "HDMI"
-name = "HDMI 3"
-
-[[connection]]
-id = 1004
-proxy = 2
-dir = "consumer"
-class = "HDMI"
-name = "HDMI 4"
+# No `[[connection]]` blocks — the same reasoning as VIZIO's. The set is asked what inputs it
+# has and answers `HostCall::Connections`; a manifest's four HDMI guess is right for a product
+# line and wrong for every individual television in it.
 
 # The TV's own broker, which is how its Remote NOW app talks to it. Fixed credentials because
 # they are the same for every unit — published in Hisense's own firmware, not issued per
