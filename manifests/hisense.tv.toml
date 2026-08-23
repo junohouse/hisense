@@ -6,23 +6,31 @@ version = "1.0.0"
 runtime = "wasm"
 primary = true
 
-# One box, two things it does — same reasoning as Roku: "watch Netflix" is the media_player,
-# volume and input are the tv.
-[[proxy]]
-id = 1
-type = "media_player"
-primary = true
-name = "Hisense"
-capabilities = { has_transport = true, has_skip = true, has_scan = true, has_dpad = true, has_apps = true, is_video_source = true, is_audio_source = true }
-
+# One box, two things it does — same shape as `roku.tv` and `vizio.tv`: "watch Netflix" is the
+# media_player, volume and input are the tv.
+#
+# The panel is declared first and marked primary, because that is what somebody bought. Bindings
+# are created in the order this file declares them — see `Project::install` — so this is what
+# leads in the tree, and `primary` is the assistant's tie-break when a command could go to
+# either. The launcher led here at first and put its own name at the top of a device the
+# household calls the living room television.
 [[proxy]]
 id = 2
 type = "tv"
+primary = true
 name = "Screen"
 # No has_discrete_power: the only power key this thing has is a toggle. `on` is a Wake-on-LAN
 # packet instead of a keypress — see src/lib.rs — so the pair still behaves like two commands,
 # just not two keys on the wire.
 capabilities = { has_discrete_input = true, has_volume = true, has_discrete_volume = true }
+
+# Still id 1 though it is declared second: the ids are the driver's own addressing and `lib.rs`
+# names them, so renumbering to match the reading order would move both for no gain.
+[[proxy]]
+id = 1
+type = "media_player"
+name = "Hisense"
+capabilities = { has_transport = true, has_skip = true, has_scan = true, has_dpad = true, has_apps = true, is_video_source = true, is_audio_source = true }
 
 # No `[[connection]]` blocks — the same reasoning as VIZIO's. The set is asked what inputs it
 # has and answers `HostCall::Connections`; a manifest's four HDMI guess is right for a product
