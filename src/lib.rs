@@ -368,7 +368,11 @@ impl DriverModule for Hisense {
                         let name = s.get("sourcename").and_then(Value::as_str)?;
                         Some(ConnectionDecl {
                             id: connection_id(name)?,
-                            proxy: TV,
+                            // The screen's jacks, not the streamer's. `proxy` became optional
+                            // in the SDK — absent means the device's own, which is the honest
+                            // answer for a lead carrying several things at once; an HDMI input
+                            // belongs to the panel specifically, so it still names one.
+                            proxy: Some(TV),
                             dir: Direction::Consumer,
                             class: signal_class(name).into(),
                             name: name.trim().to_string(),
@@ -649,9 +653,9 @@ mod tests {
         assert_eq!(ids, vec![1002, 1201, 1001, 1102, 1101]);
         assert!(
             !ids.contains(&1003) && !ids.contains(&1004),
-            "the manifest's third and fourth HDMI are phantoms on this set"
+            "a third and fourth HDMI would be phantoms on this set"
         );
-        assert!(connections.iter().all(|c| c.dir == Direction::Consumer && c.proxy == TV));
+        assert!(connections.iter().all(|c| c.dir == Direction::Consumer && c.proxy == Some(TV)));
         assert_eq!(connections.iter().find(|c| c.id == 1002).unwrap().class, "HDMI");
         assert_eq!(connections.iter().find(|c| c.id == 1201).unwrap().class, "RF_UHF_VHF");
         assert_eq!(connections.iter().find(|c| c.id == 1101).unwrap().class, "COMPOSITE");
