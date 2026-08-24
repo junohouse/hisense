@@ -43,8 +43,10 @@ capabilities = { has_transport = true, has_skip = true, has_scan = true, has_dpa
 # The TV's own broker, which is how its Remote NOW app talks to it. Fixed credentials because
 # they are the same for every unit — published in Hisense's own firmware, not issued per
 # install — see driver-sdk's TransportDecl::username.
-[[transport]]
+[[control]]
+id = 1
 kind = "mqtt"
+name = "MQTT"
 port = 36669
 tls = true
 username = "hisenseservice"
@@ -54,7 +56,7 @@ password = "multimqttservice"
 # send and check the answer to — a probe here can only confirm the port is open, not that it
 # is really a Hisense. Still worth it: an unconfirmed "something is listening at 36669" is a
 # candidate address on a survey screen instead of a trip to the TV's own network settings.
-[transport.probe]
+[control.probe]
 
 [[property]]
 name = "Address"
