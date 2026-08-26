@@ -2,6 +2,10 @@
 id = "hisense.tv"
 name = "Hisense TV"
 manufacturer = "Hisense"
+# The maker's mark, linked and never copied — this package ships no Hisense artwork. Core
+# dereferences it once for the whole house (`GET /artwork?driver=<id>`) and every screen
+# draws the same picture: the phone, the on-screen display and the wall panel.
+icon = "https://static.wixstatic.com/media/501651_75272158b1bf43998c19d324ac68b98c%7Emv2.png/v1/fill/w_192%2Ch_192%2Clg_1%2Cusm_0.66_1.00_0.01/501651_75272158b1bf43998c19d324ac68b98c%7Emv2.png"
 version = "1.0.0"
 runtime = "wasm"
 # What this driver is worth hearing when nothing is wrong. Declaring it is also what lets an
